@@ -18,6 +18,11 @@ Functional Requirements:
     - The CSV file must include all fields
     listed in the data dictionary.
     - The CSV headers will avoid cryptic abbreviations.
+  * have inputs that:
+    - ignore meaningless keystrokes
+    - display an error if the value is invalid on focusout
+    - display an error if a required field is empty on focusout
+  * prevent saving the record when errors are present
   * Enforce correct datatypes per field.
 Non-functional Requirements:
   * Enforce reasonable limits on data entered, per the data dict.
