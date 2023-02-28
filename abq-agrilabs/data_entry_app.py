@@ -29,6 +29,60 @@ class BoundText(tk.Text):
             self.edit_modified(False)
 
 
+class LabelInput(tk.Frame):
+    """A widget containing a label and input together"""
+    def __init__(
+            self, parent, label, var, input_class=ttk.Entry,
+            input_args=None, label_args=None, **kwargs
+    ):
+        super().__init__(parent, **kwargs)  # Creating frame
+
+        # setting up additional args as empty dicts if none provided
+        input_args = input_args or {}
+        label_args = label_args or {}
+
+        # set up variable to bind to widget and adding self as the label of this var
+        self.variable = var
+        self.variable.label_widget = self
+
+        # creating label
+        if input_class in (ttk.Checkbutton, ttk.Button):  # no separate label needed if this type of input
+            input_args["text"] = label
+        else:
+            # adding label with provided text & args and gridding it.
+            self.label = ttk.Label(self, text=label, **label_args)
+            self.label.grid(row=0, column=0, sticky=(tk.W + tk.E))
+
+        # setting up args with proper variable binding
+        if input_class in (
+            ttk.Checkbutton, ttk.Button, ttk.Radiobutton
+        ):  # for these types we bind with "variable" keyword
+            input_args["variable"] = self.variable
+        else:  # otherwise we bind with "textvariable" keyword
+            input_args["textvariable"] = self.variable
+
+        # adding input
+        if input_class == ttk.Radiobutton:  # radiobutton needs to add one for each of the values in input_args
+            self.input = tk.Frame(self)  # create frame to hold them with this object as parent
+            for v in input_args.pop('values', []):  # going through all values or nothing if nothing
+                button = ttk.Radiobutton(
+                    self.input, value=v, text=v, **input_args
+                )  # create the button with created frame as parent, given value as text & value, and all input_args
+                button.pack(
+                    side=tk.LEFT, ipadx=10, ipady=2, expand=True, fill='x'
+                )  # pack in to the left side of created frame
+        else:
+            self.input = input_class(self, **input_args)  # otherwise it's easy, we're the parent, and we add the args
+
+        # organizing the input into the whole widget
+        self.input.grid(row=1, column=0, sticky=(tk.W + tk.E))  # it goes below the label, stretches to each side
+        self.columnconfigure(0, weight=1)  # first (and only) column should expand to the whole widget
+
+    def grid(self, sticky=(tk.W + tk.E), **kwargs):
+        """Override grid to add default sticky values"""
+        super().grid(sticky=sticky, **kwargs)
+
+
 variables = dict()
 records_saved = 0
 
