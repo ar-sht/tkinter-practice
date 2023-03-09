@@ -145,6 +145,60 @@ class ValidatedCombobox(ValidatedMixin, ttk.Combobox):
         return valid
 
 
+class ValidatedSpinbox(ValidatedMixin, ttk.Spinbox):
+    def __init__(
+            self, *args, from_='-Infinity', to='Infinity', **kwargs
+    ):
+        super().__init__(*args, from_=from_, to=to, **kwargs)
+        increment = Decimal(str(kwargs.get('increment', '1.0')))
+        self.precision = increment.normalize().as_tuple().exponent
+
+    def _key_validate(
+            self, char, index, current, proposed, action, **kwargs
+    ):
+        if action == '0':
+            return True
+        valid = True
+        min_val = self.cget('from')
+        max_val = self.cget('to')
+        no_negative = min_val >= 0
+        no_decimal = self.precision >= 0
+        if any([
+            (char not in '-123456789'),
+            (char == '-' and (no_negative or index != '0')),
+            (char == '.' and (no_decimal or '.' in current))
+        ]):
+            return False
+        if proposed in '-.':
+            return True
+        proposed = Decimal(proposed)
+        proposed_precision = proposed.as_tuple().exponent
+        if any([
+            (proposed > max_val),
+            (proposed_precision < self.precision)
+        ]):
+            return False
+        return valid
+
+    def _focusout_validate(self, **kwargs):
+        valid = True
+        value = self.get()
+        min_val = self.cget('from')
+        max_val = self.cget('to')
+        try:
+            d_value = Decimal(value)
+        except InvalidOperation:
+            self.error.set(f'Invalid number string: {value}')
+            return False
+        if d_value < min_val:
+            self.error.set(f'Value is too low (min {min_val})')
+            valid = False
+        if d_value > max_val:
+            self.error.set(f'Value is too high (max {max_val})')
+            valid = False
+        return valid
+
+
 class BoundText(tk.Text):
     """A Text widget with a bound variable"""
     def __init__(self, *args, textvariable=None, **kwargs):
