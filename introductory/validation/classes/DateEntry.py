@@ -52,7 +52,7 @@ if __name__ == '__main__':
     ttk.Label(
       textvariable=entry.error, foreground='red'
     ).pack()
+
     # add this so we can unfocus the DateEntry
     ttk.Entry(root).pack()
     root.mainloop()
-
