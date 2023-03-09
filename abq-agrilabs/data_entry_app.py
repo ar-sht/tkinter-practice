@@ -199,6 +199,33 @@ class ValidatedSpinbox(ValidatedMixin, ttk.Spinbox):
         return valid
 
 
+class ValidatedRadioGroup(ttk.Frame):
+    """A validated radio button group"""
+    def __init__(
+            self, *args, variable=None, error_var=None,
+            values=None, button_args=None, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.variable = variable or tk.StringVar()
+        self.error = error_var or tk.StringVar()
+        self.values = values or list()
+        self.button_args = button_args or dict()
+        for v in self.values:
+            button = ttk.RadioButton(
+                self, value=v, text=v,
+                variable=self.variable, **self.button_args
+            )
+            button.pack(
+                side=tk.LEFT, ipadx=10, ipady=2, expand=True, fill='x'
+            )
+        self.bind('<FocusOut>', self.trigger_focusout_validation)
+
+    def trigger_focusout_validation(self, *_):
+        self.error.set('')
+        if not self.variable.get():
+            self.error.set('A value is required')
+
+
 class BoundText(tk.Text):
     """A Text widget with a bound variable"""
     def __init__(self, *args, textvariable=None, **kwargs):
@@ -248,7 +275,8 @@ class LabelInput(tk.Frame):
 
         # setting up args with proper variable binding
         if input_class in (
-            ttk.Checkbutton, ttk.Button, ttk.Radiobutton
+            ttk.Checkbutton, ttk.Button,
+            ttk.Radiobutton, ValidatedRadioGroup
         ):  # for these types we bind with "variable" keyword
             input_args["variable"] = self.variable
         else:  # otherwise we bind with "textvariable" keyword
