@@ -54,7 +54,7 @@ class ValidatedMixin:
         if event == 'focusout':
             self._focusout_invalid(event=event)
         elif event == 'key':
-            self._vey_invalid(
+            self._key_invalid(
                 proposed=proposed,
                 current=current,
                 char=char,
@@ -348,6 +348,21 @@ class LabelInput(tk.Frame):
             self.disable_var = disable_var
             self.disable_var.trace_add('write', self._check_disable)
 
+        self.error = getattr(self.input, 'error', tk.StringVar())
+        ttk.Label(self, textvariable=self.error, **label_args).grid(
+            row=2, column=0, sticky=(tk.W + tk.E)
+        )
+
+    def _check_disable(self, *_):
+        if not hasattr(self, 'disable_var'):
+            return
+        if self.disable_var.get():
+            self.input.configure(state=tk.DISABLED)
+            self.variable.set('')
+            self.error.set('')
+        else:
+            self.input.configure(state=tk.NORMAL)
+
     def grid(self, sticky=(tk.W + tk.E), **kwargs):
         """Override grid to add default sticky values"""
         super().grid(sticky=sticky, **kwargs)
@@ -419,17 +434,20 @@ class DataRecordForm(ttk.Frame):
         LabelInput(
             e_info, "Humidity (g/m³)",
             input_class=ValidatedSpinbox, var=self._vars['Humidity'],
-            input_args={'from_': 0.5, 'to': 52.0, 'increment': .01}
+            input_args={'from_': 0.5, 'to': 52.0, 'increment': .01},
+            disable_var=self._vars['Equipment Fault']
         ).grid(row=0, column=0)
         LabelInput(
             e_info, "Light (klx)", input_class=ValidatedSpinbox,
             var=self._vars['Light'],
-            input_args={'from_': 0, 'to': 100, 'increment': .01}
+            input_args={'from_': 0, 'to': 100, 'increment': .01},
+            disable_var=self._vars['Equipment Fault']
         ).grid(row=0, column=1)
         LabelInput(
             e_info, "Temperature (°C)",
             input_class=ValidatedSpinbox, var=self._vars['Temperature'],
-            input_args={'from_': 4, 'to': 40, 'increment': .01}
+            input_args={'from_': 4, 'to': 40, 'increment': .01},
+            disable_var=self._vars['Equipment Fault']
         )
 
         # Second row of entry thing for environmental data section
@@ -444,17 +462,17 @@ class DataRecordForm(ttk.Frame):
 
         # First row of entry things for plant data section
         LabelInput(
-            p_info, "Plants", input_class=ttk.Spinbox,
+            p_info, "Plants", input_class=ValidatedSpinbox,
             var=self._vars['Plants'],
             input_args={'from_': 0, 'to': 20}
         ).grid(row=0, column=0)
         LabelInput(
-            p_info, "Blossoms", input_class=ttk.Spinbox,
+            p_info, "Blossoms", input_class=ValidatedSpinbox,
             var=self._vars['Blossoms'],
             input_args={'from_': 0, 'to': 1000}
         ).grid(row=0, column=1)
         LabelInput(
-            p_info, "Fruit", input_class=ttk.Spinbox,
+            p_info, "Fruit", input_class=ValidatedSpinbox,
             var=self._vars['Fruit'],
             input_args={'from_': 0, 'to': 1000}
         ).grid(row=0, column=2)
@@ -522,11 +540,35 @@ class DataRecordForm(ttk.Frame):
 
     def reset(self):
         """Resets the form entries"""
+        lab = self._vars['Lab'].get()
+        time = self._vars['Time'].get()
+        technician = self._vars['Technician'].get()
+        try:
+            plot = self._vars['Plot'].get()
+        except tk.TclError:
+            plot = ''
+        plot_values = (
+            self._vars['Plot'].label_widget.input.cget('values')
+        )
+
         for var in self._vars.values():
             if isinstance(var, tk.BooleanVar):
                 var.set(False)
             else:
                 var.set('')
+
+        current_date = datetime.today().strftime('%Y-%m-%d')
+        self._vars['Date'].set(current_date)
+        self._vars['Time'].label_widget.input.focus()
+
+        if plot not in ('', 0, plot_values[-1]):
+            self._vars['Lab'].set(lab)
+            self._vars['Time'].set(time)
+            self._vars['Technician'].set(technician)
+            next_plot_index = plot_values.index(str(plot)) + 1
+            self._vars['Plot'].set(plot_values[next_plot_index])
+            self._vars['Seed Sample'].label_widget.input.focus()
+
 
     def get(self):
         data = dict()
@@ -541,6 +583,18 @@ class DataRecordForm(ttk.Frame):
                     message = f'Error in field: {key}. Data was not saved!'
                     raise ValueError(message)
         return data
+
+    def get_errors(self):
+        """Get a list of field errors in the form"""
+        errors = {}
+        for key, var in self._vars.items():
+            inp = var.label_widget.input
+            error = var.label_widget.error
+            if hasattr(inp, 'trigger_focusout_validation'):
+                inp.trigger_focusout_validation()
+            if error.get():
+                errors[key] = error.get()
+        return errors
 
 
 class Application(tk.Tk):
@@ -560,7 +614,7 @@ class Application(tk.Tk):
 
         # Creating the form
         self.recordform = DataRecordForm(self)
-        self.recordform.grid(row=1, column=0, padx=10, sticky=(tk.W + tk.E))
+        self.recordform.grid(row=1, column=0, padx=10, sticky='nsew')
 
         # Status bar at the bottom
         self.status = tk.StringVar()
@@ -572,6 +626,12 @@ class Application(tk.Tk):
 
     def _on_save(self):
         """Handles save button clicks"""
+        errors = self.recordform.get_errors()
+        if errors:
+            self.status.set(
+                f"Cannot save, error in fields: {', '.join(errors.keys())}"
+            )
+            return
         datestring = datetime.today().strftime("%Y-%m-%d")
         filename = f'abq_data_record_{datestring}.csv'
         newfile = not Path(filename).exists()
