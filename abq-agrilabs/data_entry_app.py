@@ -11,7 +11,7 @@ class ValidatedMixin:
     """Adds a validation functionality to an input widget"""
     def __init__(self, *args, error_var=None, **kwargs):
         self.error = error_var or tk.StringVar()
-        super.__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         vcmd = self.register(self._validate)
         invcmd = self.register(self._invalid)
         self.configure(
@@ -147,11 +147,55 @@ class ValidatedCombobox(ValidatedMixin, ttk.Combobox):
 
 class ValidatedSpinbox(ValidatedMixin, ttk.Spinbox):
     def __init__(
-            self, *args, from_='-Infinity', to='Infinity', **kwargs
+            self, *args, min_var=None, max_var=None,
+            focus_update_var=None, from_='-Infinity', to='Infinity', **kwargs
     ):
         super().__init__(*args, from_=from_, to=to, **kwargs)
         increment = Decimal(str(kwargs.get('increment', '1.0')))
         self.precision = increment.normalize().as_tuple().exponent
+        self.variable = kwargs.get('textvariable')
+        if not self.variable:
+            self.variable = tk.DoubleVar()
+            self.configure(textvariable=self.variable)
+        if min_var:
+            self.min_var = min_var
+            self.min_var.trace_add('write', self._set_minimum)
+        if max_var:
+            self.max_var = max_var
+            self.max_var.trace_add('write', self._set_maximum)
+        self.focus_update_var = focus_update_var
+        self.bind('<FocusOut>', self._set_focus_update_var)
+
+    def _set_focus_update_var(self, event):
+        value = self.get()
+        if self.focus_update_var and not self.error.get():
+            self.focus_update_var.set(value)
+
+    def _set_minimum(self, *_):
+        current = self.get()
+        try:
+            new_min = self.min_var.get()
+            self.config(from_=new_min)
+        except (tk.TclError, ValueError):
+            pass
+        if not current:
+            self.delete(0, tk.END)
+        else:
+            self.variable.set(current)
+        self.trigger_focusout_validation()
+
+    def _set_maximum(self, *_):
+        current = self.get()
+        try:
+            new_max = self.max_var.get()
+            self.config(to=new_max)
+        except (tk.TclError, ValueError):
+            pass
+        if not current:
+            self.delete(0, tk.END)
+        else:
+            self.variable.set(current)
+        self.trigger_focusout_validation()
 
     def _key_validate(
             self, char, index, current, proposed, action, **kwargs
@@ -211,7 +255,7 @@ class ValidatedRadioGroup(ttk.Frame):
         self.values = values or list()
         self.button_args = button_args or dict()
         for v in self.values:
-            button = ttk.RadioButton(
+            button = ttk.Radiobutton(
                 self, value=v, text=v,
                 variable=self.variable, **self.button_args
             )
@@ -253,7 +297,8 @@ class LabelInput(tk.Frame):
     """A widget containing a label and input together"""
     def __init__(
             self, parent, label, var, input_class=ttk.Entry,
-            input_args=None, label_args=None, **kwargs
+            input_args=None, label_args=None, disable_var=None,
+            **kwargs
     ):
         super().__init__(parent, **kwargs)  # Creating frame
 
@@ -299,6 +344,10 @@ class LabelInput(tk.Frame):
         self.input.grid(row=1, column=0, sticky=(tk.W + tk.E))  # it goes below the label, stretches to each side
         self.columnconfigure(0, weight=1)  # first (and only) column should expand to the whole widget
 
+        if disable_var:
+            self.disable_var = disable_var
+            self.disable_var.trace_add('write', self._check_disable)
+
     def grid(self, sticky=(tk.W + tk.E), **kwargs):
         """Override grid to add default sticky values"""
         super().grid(sticky=sticky, **kwargs)
@@ -335,30 +384,32 @@ class DataRecordForm(ttk.Frame):
 
         # First row of entry things for record info
         LabelInput(
-            r_info, "Date", var=self._vars['Date']
+            r_info, "Date", var=self._vars['Date'], input_class=DateEntry
         ).grid(row=0, column=0)
         LabelInput(
-            r_info, "Time", input_class=ttk.Combobox,
+            r_info, "Time", input_class=ValidatedCombobox,
             var=self._vars['Time'],
             input_args={'values': ['8:00', '12:00', '16:00', '20:00']}
         ).grid(row=0, column=1)
         LabelInput(
-            r_info, "Technician", var=self._vars['Technician']
+            r_info, "Technician", var=self._vars['Technician'],
+            input_class=RequiredEntry
         ).grid(row=0, column=2)
 
         # Second row of entry things for record info
         LabelInput(
-            r_info, "Lab", input_class=ttk.Radiobutton,
+            r_info, "Lab", input_class=ValidatedRadioGroup,
             var=self._vars['Lab'],
             input_args={'values': ['A', 'B', 'C']}
         ).grid(row=1, column=0)
         LabelInput(
-            r_info, "Plot", input_class=ttk.Combobox,
+            r_info, "Plot", input_class=ValidatedCombobox,
             var=self._vars['Plot'],
             input_args={'values': [list(range(1, 21))]}
         ).grid(row=1, column=1)
         LabelInput(
-            r_info, "Seed Sample", var=self._vars['Seed Sample']
+            r_info, "Seed Sample", var=self._vars['Seed Sample'],
+            input_class=RequiredEntry
         ).grid(row=1, column=2)
 
         # Second section of form - Environmental Data
@@ -367,17 +418,17 @@ class DataRecordForm(ttk.Frame):
         # First row of entry things for environmental data section
         LabelInput(
             e_info, "Humidity (g/m³)",
-            input_class=ttk.Spinbox, var=self._vars['Humidity'],
+            input_class=ValidatedSpinbox, var=self._vars['Humidity'],
             input_args={'from_': 0.5, 'to': 52.0, 'increment': .01}
         ).grid(row=0, column=0)
         LabelInput(
-            e_info, "Light (klx)", input_class=ttk.Spinbox,
+            e_info, "Light (klx)", input_class=ValidatedSpinbox,
             var=self._vars['Light'],
             input_args={'from_': 0, 'to': 100, 'increment': .01}
         ).grid(row=0, column=1)
         LabelInput(
             e_info, "Temperature (°C)",
-            input_class=ttk.Spinbox, var=self._vars['Temperature'],
+            input_class=ValidatedSpinbox, var=self._vars['Temperature'],
             input_args={'from_': 4, 'to': 40, 'increment': .01}
         )
 
@@ -409,20 +460,32 @@ class DataRecordForm(ttk.Frame):
         ).grid(row=0, column=2)
 
         # Second row of entry things for plant data section
+        min_height_var = tk.DoubleVar(value='-infinity')
+        max_height_var = tk.DoubleVar(value='infinity')
+
         LabelInput(
             p_info, "Min Height (cm)",
-            input_class=ttk.Spinbox, var=self._vars['Min Height'],
-            input_args={'from_': 0, 'to': 1000, 'increment': .01}
+            input_class=ValidatedSpinbox, var=self._vars['Min Height'],
+            input_args={
+                'from_': 0, 'to': 1000, 'increment': .01,
+                'max_var': max_height_var, 'focus_update_var': min_height_var
+            }
         ).grid(row=1, column=0)
         LabelInput(
             p_info, "Max Height (cm)",
-            input_class=ttk.Spinbox, var=self._vars['Max Height'],
-            input_args={'from_': 0, 'to': 1000, 'increment': .01}
+            input_class=ValidatedSpinbox, var=self._vars['Max Height'],
+            input_args={
+                'from_': 0, 'to': 1000, 'increment': .01,
+                'min_var': min_height_var, 'focus_update_var': max_height_var
+            }
         ).grid(row=1, column=1)
         LabelInput(
             p_info, "Median Height (cm)",
-            input_class=ttk.Spinbox, var=self._vars['Med Height'],
-            input_args={'from_': 0, 'to': 1000, 'increment': .01}
+            input_class=ValidatedSpinbox, var=self._vars['Med Height'],
+            input_args={
+                'from_': 0, 'to': 1000, 'increment': .01,
+                'min_var': min_height_var, 'max_var': max_height_var
+            }
         ).grid(row=1, column=2)
 
         # Notes section
