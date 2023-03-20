@@ -15,6 +15,66 @@ class DataRecordForm(ttk.Frame):
             frame.columnconfigure(i, weight=1)
         return frame
 
+    def _on_save(self):
+        self.event_generate('<<SaveRecord>>')
+
+    def reset(self):
+        """Resets the form entries"""
+        lab = self._vars['Lab'].get()
+        time = self._vars['Time'].get()
+        technician = self._vars['Technician'].get()
+        try:
+            plot = self._vars['Plot'].get()
+        except tk.TclError:
+            plot = ''
+        plot_values = (
+            self._vars['Plot'].label_widget.input.cget('values')
+        )
+
+        for var in self._vars.values():
+            if isinstance(var, tk.BooleanVar):
+                var.set(False)
+            else:
+                var.set('')
+
+        current_date = datetime.today().strftime('%Y-%m-%d')
+        self._vars['Date'].set(current_date)
+        self._vars['Time'].label_widget.input.focus()
+
+        if plot not in ('', 0, plot_values[-1]):
+            self._vars['Lab'].set(lab)
+            self._vars['Time'].set(time)
+            self._vars['Technician'].set(technician)
+            next_plot_index = plot_values.index(str(plot)) + 1
+            self._vars['Plot'].set(plot_values[next_plot_index])
+            self._vars['Seed Sample'].label_widget.input.focus()
+
+    def get(self):
+        data = dict()
+        fault = self._vars['Equipment Fault'].get()
+        for key, variable in self._vars.items():
+            if fault and key in ['Light', 'Humidity', 'Temperature']:
+                data[key] = ''
+            else:
+                try:
+                    data[key] = variable.get()
+                except tk.TclError:
+                    message = f'Error in field: {key}. Data was not saved!'
+                    raise ValueError(message)
+        return data
+
+    def get_errors(self):
+        """Get a list of field errors in the form"""
+        errors = {}
+        for key, var in self._vars.items():
+            inp = var.label_widget.input
+            error = var.label_widget.error
+            if hasattr(inp, 'trigger_focusout_validation'):
+                inp.trigger_focusout_validation()
+            if error.get():
+                errors[key] = error.get()
+        return errors
+
     def __init__(self, parent, model, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -101,7 +161,7 @@ class DataRecordForm(ttk.Frame):
             field_spec=fields['Temperature'],
             var=self._vars['Temperature'],
             disable_var=self._vars['Equipment Fault'],
-        )
+        ).grid(row=0, column=2)
 
         # Second row of entry thing for environmental data section
         w.LabelInput(
@@ -145,17 +205,20 @@ class DataRecordForm(ttk.Frame):
         ).grid(row=1, column=0)
         w.LabelInput(
             p_info, "Max Height (cm)",
-            input_class=w.ValidatedSpinbox, var=self._vars['Max Height'],
+            field_spec=fields['Max Height'],
+            var=self._vars['Max Height'],
             input_args={
-                'min_var': min_height_var, 'focus_update_var': max_height_var
+                'min_var': min_height_var,
+                'focus_update_var': max_height_var
             }
         ).grid(row=1, column=1)
         w.LabelInput(
             p_info, "Median Height (cm)",
-            input_class=w.ValidatedSpinbox, var=self._vars['Med Height'],
+            field_spec=fields['Med Height'],
+            var=self._vars['Med Height'],
             input_args={
-                'from_': 0, 'to': 1000, 'increment': .01,
-                'min_var': min_height_var, 'max_var': max_height_var
+                'min_var': min_height_var,
+                'max_var': max_height_var
             }
         ).grid(row=1, column=2)
 
@@ -172,7 +235,7 @@ class DataRecordForm(ttk.Frame):
 
         # Save button
         self.savebutton = ttk.Button(
-            buttons, text="Save", command=self.master._on_save
+            buttons, text="Save", command=self._on_save
         )
         self.savebutton.pack(side=tk.RIGHT)
 
