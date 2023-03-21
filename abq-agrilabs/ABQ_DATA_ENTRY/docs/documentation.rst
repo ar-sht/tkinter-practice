@@ -9,6 +9,7 @@ into a CSV file.
 Requirements
 ----------------------
 Functional Requirements:
+  * Provide a UI for reading, updating, and appending data to the CSV file
   * Allow all relevant, valid data to be entered,
     as per the data dictionary.
   * Append entered data to a CSV file:
@@ -18,11 +19,11 @@ Functional Requirements:
     - The CSV file must include all fields
     listed in the data dictionary.
     - The CSV headers will avoid cryptic abbreviations.
-  * have inputs that:
+  * Have inputs that:
     - ignore meaningless keystrokes
     - display an error if the value is invalid on focusout
     - display an error if a required field is empty on focusout
-  * prevent saving the record when errors are present
+  * Prevent saving the record when errors are present
   * Enforce correct datatypes per field.
 Non-functional Requirements:
   * Enforce reasonable limits on data entered, per the data dict.
@@ -34,7 +35,6 @@ Non-functional Requirements:
 Functionality Not Required
 --------------------------
 The program does not need to:
-  * Allow editing of data.
   * Allow deletion of data.
 Users can perform both actions in LibreOffice if needed.
 
