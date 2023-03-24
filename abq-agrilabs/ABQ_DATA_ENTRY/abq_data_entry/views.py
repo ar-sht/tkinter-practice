@@ -298,3 +298,75 @@ class LoginDialog(Dialog):
 
     def apply(self):
         self.result = (self._user.get(), self._pw.get())
+
+
+class RecordList(tk.Frame):
+    """Display for CSV file contents"""
+    column_defs = {
+        '#0': {'label': 'Row', 'anchor': tk.W},
+        'Date': {'label': 'Date', 'width': 150, 'stretch': True},
+        'Time': {'label': 'Time'},
+        'Lab': {'label': 'Lab', 'width': 40},
+        'Plot': {'label': 'Plot', 'width': 80}
+    }
+    default_width = 100
+    default_minwidth = 10
+    default_anchor = tk.CENTER
+
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(self, parent, *args, **kwargs)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+
+        self.treeview = ttk.Treeview(
+            self,
+            columns=list(self.column_defs.keys())[1:],
+            selectmode='browse'
+        )
+        self.treeview.grid(row=0, column=0, sticky='nsew')
+
+        for name, definition in self.column_defs.items():
+            label = definition.get('label', '')
+            anchor = definition.get('anchor', '')
+            minwidth = definition.get('minwidth', self.default_minwidth)
+            width = definition.get('width', self.default_width)
+            stretch = definition.get('stretch', False)
+            self.treeview.heading(name, text=label, anchor=anchor)
+            self.treeview.column(
+                name, anchor=anchor, minwidth=minwidth,
+                width=width, stretch=stretch
+            )
+
+        self.treeview.bind('<Double-1>', self._on_open_record)
+        self.treeview.bind('<Return>', self._on_open_record)
+
+        self.scrollbar = ttk.Scrollbar(
+            self,
+            orient=tk.VERTICAL,
+            command=self.treeview.yview
+        )
+        self.treeview.configure(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.grid(row=0, column=1, sticky='nsw')
+
+    def _on_open_record(self):
+        self.event_generate('<<OpenRecord>>')
+
+    def populate(self, rows):
+        """Clear the treeview and write the supplied data rows to it"""
+        for row in self.treeview.get_children():
+            self.treeview.delete(row)
+
+        cids = self.treeview.cget('columns')
+        for rownum, rowdata in enumerate(rows):
+            values = [rowdata[cid] for cid in cids]
+            self.treeview.insert('', 'end', iid=str(rownum), text=str(rownum), values=values)
+
+        if len(rows) > 0:
+            self.treeview.focus_set()
+            self.treeview.selection_set('0')
+            self.treeview.focus('0')
+
+    @property
+    def selected_id(self):
+        selection = self.treeview.selection()
+        return int(selection[0]) if selection else None
