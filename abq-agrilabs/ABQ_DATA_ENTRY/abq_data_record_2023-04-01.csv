@@ -1,0 +1,2 @@
+Date,Time,Technician,Lab,Plot,Seed Sample,Humidity,Light,Temperature,Equipment Fault,Plants,Blossoms,Fruit,Min Height,Max Height,Med Height,Notes
+2023-04-01,8:00,aioersnt,A,20,AIETnd,12.0,13.0,15.0,False,2,12,344,12.0,44.0,21.0,aertsneoasntnn

@@ -51,7 +51,7 @@ class DataRecordForm(ttk.Frame):
             self._vars['Lab'].set(lab)
             self._vars['Time'].set(time)
             self._vars['Technician'].set(technician)
-            next_plot_index = plot_values.index(str(plot)) + 1
+            next_plot_index = (plot_values.index(str(plot)) + 1) % 3
             self._vars['Plot'].set(plot_values[next_plot_index])
             self._vars['Seed Sample'].label_widget.input.focus()
 
@@ -83,6 +83,8 @@ class DataRecordForm(ttk.Frame):
 
     def __init__(self, parent, model, settings, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
 
         self.model = model
         self.settings = settings
@@ -108,6 +110,11 @@ class DataRecordForm(ttk.Frame):
             'Med Height': tk.DoubleVar(),
             'Notes': tk.StringVar()
         }
+
+        self.current_record = None
+
+        self.record_label = ttk.Label(self)
+        self.record_label.grid(row=0, column=0)
 
         # First section of form -  Record Info
         r_info = self._add_frame("Record Information")
@@ -234,11 +241,11 @@ class DataRecordForm(ttk.Frame):
             self, "Notes",
             input_class=w.BoundText, var=self._vars['Notes'],
             input_args={'width': 75, 'height': 10}
-        ).grid(sticky=tk.W, row=3, column=0)
+        ).grid(sticky='nsew', row=4, column=0, padx=10, pady=10)
 
         # Buttons section
         buttons = tk.Frame(self)
-        buttons.grid(sticky=(tk.W + tk.E), row=4)
+        buttons.grid(sticky=(tk.W + tk.E), row=5)
 
         # Save button
         self.savebutton = ttk.Button(
@@ -251,6 +258,20 @@ class DataRecordForm(ttk.Frame):
             buttons, text="Reset", command=self.reset
         )
         self.resetbutton.pack(side=tk.RIGHT)
+
+    def load_record(self, rownum, data=None):
+        self.current_record = rownum
+        if rownum is None:
+            self.reset()
+            self.record_label.config(text='New Record')
+        else:
+            self.record_label.config(text=f'Record #{rownum}')
+            for key, var in self._vars.items():
+                var.set(data.get(key, ''))
+                try:
+                    var.label_widget.input.trigger_focusout_validation()
+                except AttributeError:
+                    pass
 
 
 class LoginDialog(Dialog):
@@ -314,7 +335,7 @@ class RecordList(tk.Frame):
     default_anchor = tk.CENTER
 
     def __init__(self, parent, *args, **kwargs):
-        super().__init__(self, parent, *args, **kwargs)
+        super().__init__(parent, *args, **kwargs)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
@@ -327,7 +348,7 @@ class RecordList(tk.Frame):
 
         for name, definition in self.column_defs.items():
             label = definition.get('label', '')
-            anchor = definition.get('anchor', '')
+            anchor = definition.get('anchor', self.default_anchor)
             minwidth = definition.get('minwidth', self.default_minwidth)
             width = definition.get('width', self.default_width)
             stretch = definition.get('stretch', False)
@@ -348,7 +369,7 @@ class RecordList(tk.Frame):
         self.treeview.configure(yscrollcommand=self.scrollbar.set)
         self.scrollbar.grid(row=0, column=1, sticky='nsw')
 
-    def _on_open_record(self):
+    def _on_open_record(self, *_):
         self.event_generate('<<OpenRecord>>')
 
     def populate(self, rows):
